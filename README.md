@@ -1,9 +1,9 @@
-# Slide-Coach — Real-Time AI Presentation Coach
+# PitchPerfect — Real-Time AI Presentation Coach
 **An AI-powered web app that listens as you present, analyses your speech in real time, and gives you specific coaching tips after every slide — all in your browser.**
 
-## What is SlideCoach?
+## What is PitchPerfect?
 
-SlideCoach is a **full-stack AI SaaS web application** that acts as your personal presentation coach. You upload your slides as a PDF, click **Start Presenting**, and speak normally into your laptop mic.
+PitchPerfect is a **full-stack AI SaaS web application** that acts as your personal presentation coach. You upload your slides as a PDF, click **Start Presenting**, and speak normally into your laptop mic.
 
 After your presentation ends, you are automatically redirected to a **full analytics report** — overall score, pace charts, filler breakdown, and a slide-by-slide review of every tip the AI gave you.
 No hardware. No wearables. No downloads. Just your browser, your slides, and an AI coach.
