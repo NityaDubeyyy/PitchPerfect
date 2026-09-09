@@ -41,8 +41,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-print("[INFO] Loading Whisper model...")
-model = whisper.load_model("base")
+import torch
+torch.set_num_threads(2)
+
+print("[INFO] Loading Whisper tiny.en model (lightweight for Render)...")
+model = whisper.load_model("tiny.en")
 print("[OK] Whisper model loaded and ready")
 
 # Known Whisper hallucination phrases
@@ -97,7 +100,7 @@ def is_hallucination(text: str) -> bool:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": "whisper-base"}
+    return {"status": "ok", "model": "whisper-tiny.en"}
 
 
 @app.post("/transcribe")
