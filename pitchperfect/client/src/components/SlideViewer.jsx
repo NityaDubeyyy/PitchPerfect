@@ -8,16 +8,19 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 export default function SlideViewer({ fileUrl, onPageCount, currentPage, onExtractSlideTexts }) {
     const canvasRef = useRef(null);
-    const pdfRef = useRef(null);
+    const [pdfDoc, setPdfDoc] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (!fileUrl) return;
 
+        let isMounted = true;
+
         const load = async () => {
             try {
                 setLoading(true);
+                setError('');
 
                 let targetUrl = fileUrl;
                 if (!fileUrl.startsWith('http')) {
@@ -27,13 +30,18 @@ export default function SlideViewer({ fileUrl, onPageCount, currentPage, onExtra
                     targetUrl = fileUrl.replace('http://localhost:5000', import.meta.env.VITE_API_URL.replace(/\/+$/, ''));
                 }
 
-                const pdf = await pdfjsLib.getDocument({
-                    url: targetUrl,
-                    withCredentials: false,
-                }).promise;
+                // Fetch array buffer directly for reliable cross-origin streaming
+                const res = await fetch(targetUrl);
+                if (!res.ok) {
+                    throw new Error(`Failed to download PDF (HTTP ${res.status})`);
+                }
+                const arrayBuffer = await res.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-                pdfRef.current = pdf;
-                onPageCount(pdf.numPages);
+                if (!isMounted) return;
+
+                setPdfDoc(pdf);
+                if (onPageCount) onPageCount(pdf.numPages);
 
                 if (onExtractSlideTexts) {
                     const slideTexts = {};
@@ -47,40 +55,60 @@ export default function SlideViewer({ fileUrl, onPageCount, currentPage, onExtra
                             console.warn(`Could not extract text for slide ${i}:`, textErr);
                         }
                     }
-                    onExtractSlideTexts(slideTexts);
+                    if (isMounted) onExtractSlideTexts(slideTexts);
                 }
 
                 setLoading(false);
             } catch (err) {
                 console.error('PDF load error:', err);
-                setError(`Failed to load PDF: ${err.message}`);
-                setLoading(false);
+                if (isMounted) {
+                    setError(`Failed to load PDF: ${err.message}`);
+                    setLoading(false);
+                }
             }
         };
 
         load();
+
+        return () => {
+            isMounted = false;
+        };
     }, [fileUrl]);
 
     useEffect(() => {
-        if (!pdfRef.current || !canvasRef.current) return;
+        if (!pdfDoc || !canvasRef.current) return;
+
+        let renderTask = null;
 
         const render = async () => {
             try {
-                const page = await pdfRef.current.getPage(currentPage);
+                const page = await pdfDoc.getPage(currentPage);
                 const scale = 1.5;
                 const viewport = page.getViewport({ scale });
                 const canvas = canvasRef.current;
+                if (!canvas) return;
+
                 const ctx = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
-                await page.render({ canvasContext: ctx, viewport }).promise;
+
+                renderTask = page.render({ canvasContext: ctx, viewport });
+                await renderTask.promise;
             } catch (err) {
-                console.error('Render error:', err);
+                if (err.name !== 'RenderingCancelledException') {
+                    console.error('Render error:', err);
+                }
             }
         };
 
         render();
-    }, [currentPage, pdfRef.current]);
+
+        return () => {
+            if (renderTask) {
+                try { renderTask.cancel(); } catch (_) {}
+            }
+        };
+    }, [currentPage, pdfDoc]);
 
     if (loading) return (
         <div style={s.center}>
