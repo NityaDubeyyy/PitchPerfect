@@ -8,13 +8,23 @@ const path = require('path');
 const Session = require('../models/Session');
 const auth = require('../middleware/auth');
 
+const fs = require('fs');
+const uploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 // Multer config
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '../uploads'));
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        cb(null, `${Date.now()}-${safeName}`);
     },
 });
 

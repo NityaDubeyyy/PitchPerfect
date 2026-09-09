@@ -2,9 +2,7 @@ import api from './axios';
 export { login, signup } from './auth';
 
 export const createSession = async (formData) => {
-    const response = await api.post('/sessions', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post('/sessions', formData);
     return response.data;
 };
 
