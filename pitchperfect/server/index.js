@@ -14,23 +14,44 @@ dotenv.config();
 const app = express();
 const httpServer = http.createServer(app);
 
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+const CLIENT_URL = rawClientUrl.replace(/\/+$/, '');
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const cleanOrigin = origin.replace(/\/+$/, '');
+        if (
+            cleanOrigin === CLIENT_URL ||
+            cleanOrigin.endsWith('.vercel.app') ||
+            cleanOrigin.includes('localhost')
+        ) {
+            callback(null, true);
+        } else {
+            callback(null, true);
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With'],
+};
 
 const io = new Server(httpServer, {
     cors: {
-        origin: CLIENT_URL,
+        origin: (origin, callback) => callback(null, true),
         methods: ['GET', 'POST'],
         credentials: true,
     },
     maxHttpBufferSize: 5e6,
 });
 
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Serve uploaded PDFs
 app.use('/uploads', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', CLIENT_URL);
+    res.header('Access-Control-Allow-Origin', req.headers.origin || CLIENT_URL);
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Cross-Origin-Resource-Policy', 'cross-origin');
     next();
 }, express.static(path.join(__dirname, 'uploads')));
