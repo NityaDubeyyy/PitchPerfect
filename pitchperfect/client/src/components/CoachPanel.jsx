@@ -6,6 +6,7 @@ export default function CoachPanel({ tip, slideIndex, loading, topIssue }) {
         pace: '#facc15',
         fillers: '#f87171',
         confidence: '#c084fc',
+        alignment: '#a855f7',
         clarity: '#60a5fa',
     }[topIssue] || '#4ade80';
 
@@ -13,6 +14,7 @@ export default function CoachPanel({ tip, slideIndex, loading, topIssue }) {
         pace: '⚡ Pace',
         fillers: '🚫 Fillers',
         confidence: '💪 Confidence',
+        alignment: '📖 Slide Reading',
         clarity: '📋 Clarity',
     }[topIssue] || '💡 Coaching tip';
 

@@ -46,6 +46,7 @@ export default function ReportPage() {
         wpm: slide.metrics.wpm || 0,
         fillers: slide.metrics.fillers || 0,
         confidence: slide.metrics.confidence || 0,
+        alignment: slide.metrics.alignmentScore ?? 100,
         score: slide.score || 0,
     }));
 
@@ -107,13 +108,17 @@ export default function ReportPage() {
                             </div>
                             <div style={s.statLabel}>Avg confidence</div>
                             <div style={s.statSub}>
-                                {finalReport.avgConfidence >= 85 ? '✓ confident' : 'speak more directly'}
+                                {finalReport.avgConfidence >= 85 ? '✓ confident' : 'speak directly'}
                             </div>
                         </div>
                         <div style={s.statBox}>
-                            <div style={s.statNum}>{finalReport.totalWords}</div>
-                            <div style={s.statLabel}>Total words</div>
-                            <div style={s.statSub}>across all slides</div>
+                            <div style={{ ...s.statNum, color: (finalReport.avgAlignment || 100) >= 75 ? '#4ade80' : '#c084fc' }}>
+                                {finalReport.avgAlignment ?? 100}%
+                            </div>
+                            <div style={s.statLabel}>Slide alignment</div>
+                            <div style={{ ...s.statSub, color: (finalReport.slideReaderCount || 0) === 0 ? '#4ade80' : '#c084fc' }}>
+                                {finalReport.slideReaderCount > 0 ? `📖 ${finalReport.slideReaderCount} slide reader warning` : '✓ original commentary'}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -177,9 +182,9 @@ export default function ReportPage() {
                         </ResponsiveContainer>
                     </div>
 
-                    {/* Confidence */}
+                    {/* Confidence & Alignment */}
                     <div style={s.chartBox}>
-                        <div style={s.chartTitle}>Confidence score per slide</div>
+                        <div style={s.chartTitle}>Confidence & Slide Alignment</div>
                         <ResponsiveContainer width="100%" height={180}>
                             <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2a30" />
@@ -188,10 +193,10 @@ export default function ReportPage() {
                                 <Tooltip
                                     contentStyle={{ background: '#1a1a1f', border: '1px solid #2a2a30', borderRadius: '8px' }}
                                     labelStyle={{ color: '#ccc' }}
-                                    itemStyle={{ color: '#4ade80' }}
                                 />
                                 <ReferenceLine y={80} stroke="#4ade8044" strokeDasharray="4 4" />
-                                <Line type="monotone" dataKey="confidence" stroke="#4ade80" strokeWidth={2} dot={{ fill: '#4ade80', r: 4 }} />
+                                <Line type="monotone" name="Confidence %" dataKey="confidence" stroke="#4ade80" strokeWidth={2} dot={{ fill: '#4ade80', r: 3 }} />
+                                <Line type="monotone" name="Alignment %" dataKey="alignment" stroke="#c084fc" strokeWidth={2} dot={{ fill: '#c084fc', r: 3 }} />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
@@ -219,6 +224,10 @@ export default function ReportPage() {
                                         <span style={{ color: '#f87171' }}>{slide.metrics.fillers} fillers</span>
                                         <span style={{ color: '#555', margin: '0 6px' }}>·</span>
                                         <span style={{ color: '#4ade80' }}>{slide.metrics.confidence}% conf</span>
+                                        <span style={{ color: '#555', margin: '0 6px' }}>·</span>
+                                        <span style={{ color: slide.metrics.isReadingSlide ? '#c084fc' : '#a855f7' }}>
+                                            {slide.metrics.alignmentScore ?? 100}% alignment {slide.metrics.isReadingSlide ? '📖 (verbatim reader)' : ''}
+                                        </span>
                                     </div>
                                 </div>
                                 <div style={{

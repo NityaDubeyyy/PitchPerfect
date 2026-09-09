@@ -10,6 +10,9 @@ const slideDataSchema = new mongoose.Schema({
         wpm: { type: Number, default: 0 },
         fillers: { type: Number, default: 0 },
         confidence: { type: Number, default: 0 },
+        alignmentScore: { type: Number, default: 100 },
+        verbatimMatchPct: { type: Number, default: 0 },
+        isReadingSlide: { type: Boolean, default: false },
     },
     coachingTip: { type: String, default: '' },
     topIssue: { type: String, default: '' },
@@ -18,6 +21,10 @@ const slideDataSchema = new mongoose.Schema({
 
 const sessionSchema = new mongoose.Schema(
     {
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
         title: {
             type: String,
             required: true,
@@ -45,6 +52,8 @@ const sessionSchema = new mongoose.Schema(
             avgWPM: { type: Number, default: 0 },
             totalFillers: { type: Number, default: 0 },
             avgConfidence: { type: Number, default: 0 },
+            avgAlignment: { type: Number, default: 100 },
+            slideReaderCount: { type: Number, default: 0 },
             bestSlide: { type: Number, default: 0 },
             worstSlide: { type: Number, default: 0 },
             topIssue: { type: String, default: '' },

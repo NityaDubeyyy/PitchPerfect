@@ -34,10 +34,17 @@ export default function PresenterPage() {
         tipTopIssue,
         tipSlideIndex,
         liveTranscript,
+        sendSlideTexts,
         sendAudioChunk,
         notifySlideChange,
         endSession,
     } = useSocket(id, handleSessionEnded);
+
+    const handleExtractSlideTexts = (extractedTexts) => {
+        if (sendSlideTexts) {
+            sendSlideTexts(extractedTexts);
+        }
+    };
 
     useEffect(() => {
         getSession(id)
@@ -121,6 +128,7 @@ export default function PresenterPage() {
                         fileUrl={session?.fileUrl}
                         currentPage={currentPage}
                         onPageCount={setTotalPages}
+                        onExtractSlideTexts={handleExtractSlideTexts}
                     />
 
                     <div style={s.nav}>

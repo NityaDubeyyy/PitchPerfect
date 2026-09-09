@@ -2,7 +2,7 @@
 // Key change: end_session now saves full report to MongoDB
 
 const { transcribeAudio, isPythonServiceAlive } = require('../utils/transcribe');
-const { wpmTool, fillerTool, confidenceTool, cleanupSession } = require('../langchain/tools');
+const { wpmTool, fillerTool, confidenceTool, alignmentTool, cleanupSession } = require('../langchain/tools');
 const { runCoachingAgent } = require('../langchain/agent');
 const Session = require('../models/Session');
 
@@ -29,9 +29,10 @@ module.exports = function registerSocketHandlers(io) {
             if (!sessionStore[sessionId]) {
                 sessionStore[sessionId] = {
                     transcripts: {},  // { slideIndex: "full text" }
-                    metrics: {},  // { slideIndex: { wpm, fillers, confidence } }
+                    slideTexts: {},   // { slideIndex: "slide text" }
+                    metrics: {},  // { slideIndex: { wpm, fillers, confidence, alignmentScore, verbatimMatchPct, isReadingSlide } }
                     tips: {},  // { slideIndex: "tip text" }
-                    topIssues: {},  // { slideIndex: "fillers|pace|confidence" }
+                    topIssues: {},  // { slideIndex: "fillers|pace|confidence|alignment" }
                     slideIndex: 0,
                     startTime: Date.now(),
                 };
@@ -41,6 +42,14 @@ module.exports = function registerSocketHandlers(io) {
                 sessionId,
                 message: 'Connected to real-time session',
             });
+        });
+
+        // ── slide_texts ────────────────────────────────────────
+        socket.on('slide_texts', ({ sessionId, slideTexts }) => {
+            if (sessionStore[sessionId]) {
+                sessionStore[sessionId].slideTexts = slideTexts || {};
+                console.log(`📑 Received slide texts for ${sessionId} (${Object.keys(slideTexts || {}).length} slides)`);
+            }
         });
 
         // ── audio_chunk ─────────────────────────────────────────
@@ -70,6 +79,11 @@ module.exports = function registerSocketHandlers(io) {
 
             console.log(`   📝 "${transcript.substring(0, 70)}"`);
 
+            if (!sessionStore[sessionId]) return;
+
+            if (!sessionStore[sessionId].transcripts) {
+                sessionStore[sessionId].transcripts = {};
+            }
             if (!sessionStore[sessionId].transcripts[slideIndex]) {
                 sessionStore[sessionId].transcripts[slideIndex] = '';
             }
@@ -77,31 +91,44 @@ module.exports = function registerSocketHandlers(io) {
 
             socket.emit('transcript_update', { slideIndex, text: transcript });
 
+            const slideText = sessionStore[sessionId].slideTexts?.[slideIndex] || '';
+
             // Run metrics tools
-            let wpmResult, fillerResult, confidenceResult;
+            let wpmResult, fillerResult, confidenceResult, alignmentResult;
             try {
-                [wpmResult, fillerResult, confidenceResult] = await Promise.all([
+                [wpmResult, fillerResult, confidenceResult, alignmentResult] = await Promise.all([
                     wpmTool.invoke(JSON.stringify({ transcript, chunkDurationSeconds: 4, sessionId })),
                     fillerTool.invoke(JSON.stringify({ transcript, sessionId })),
                     confidenceTool.invoke(JSON.stringify({ transcript, sessionId })),
+                    alignmentTool.invoke(JSON.stringify({ transcript: sessionStore[sessionId].transcripts[slideIndex], slideText, sessionId })),
                 ]);
             } catch (err) {
                 console.error('   ❌ Tool error:', err.message);
                 return;
             }
 
+            if (!sessionStore[sessionId]) return;
+
+            if (!sessionStore[sessionId].metrics) {
+                sessionStore[sessionId].metrics = {};
+            }
+
             const wpm = JSON.parse(wpmResult);
             const fillers = JSON.parse(fillerResult);
             const confidence = JSON.parse(confidenceResult);
+            const alignment = JSON.parse(alignmentResult);
 
             // Store latest metrics per slide for report
             sessionStore[sessionId].metrics[slideIndex] = {
                 wpm: wpm.average,
                 fillers: fillers.sessionTotal,
                 confidence: confidence.score,
+                alignmentScore: alignment.alignmentScore,
+                verbatimMatchPct: alignment.verbatimMatchPct,
+                isReadingSlide: alignment.isReadingSlide,
             };
 
-            console.log(`   📊 WPM: ${wpm.average} | Fillers: ${fillers.sessionTotal} | Conf: ${confidence.score}%`);
+            console.log(`   📊 WPM: ${wpm.average} | Fillers: ${fillers.sessionTotal} | Conf: ${confidence.score}% | Align: ${alignment.alignmentScore}% (Verbatim: ${alignment.verbatimMatchPct}%)`);
 
             socket.emit('metrics_update', {
                 wpm: wpm.average,
@@ -116,6 +143,11 @@ module.exports = function registerSocketHandlers(io) {
                 confLevel: confidence.level,
                 hedgesFound: confidence.hedgesFound,
                 suggestion: confidence.suggestion,
+                alignmentScore: alignment.alignmentScore,
+                verbatimMatchPct: alignment.verbatimMatchPct,
+                isReadingSlide: alignment.isReadingSlide,
+                alignmentLabel: alignment.label,
+                alignmentSuggestion: alignment.suggestion,
                 slideIndex,
             });
         });
@@ -130,6 +162,8 @@ module.exports = function registerSocketHandlers(io) {
 
             const fullTranscript =
                 sessionStore[sessionId]?.transcripts[completedSlide] || '';
+            const slideText =
+                sessionStore[sessionId]?.slideTexts[completedSlide] || '';
 
             if (!fullTranscript || fullTranscript.trim() === '') {
                 socket.emit('coaching_tip', {
@@ -146,7 +180,7 @@ module.exports = function registerSocketHandlers(io) {
             });
 
             const result = await runCoachingAgent(
-                fullTranscript, completedSlide, sessionId, ''
+                fullTranscript, completedSlide, sessionId, slideText
             );
 
             // Store tip for report
@@ -164,6 +198,9 @@ module.exports = function registerSocketHandlers(io) {
                 wpm: result.wpm,
                 fillers: result.fillers,
                 confidence: result.confidence,
+                alignmentScore: result.alignmentScore,
+                verbatimMatchPct: result.verbatimMatchPct,
+                isReadingSlide: result.isReadingSlide,
                 topIssue: result.topIssue,
             });
         });
@@ -183,7 +220,9 @@ module.exports = function registerSocketHandlers(io) {
                 // ── Build per-slide data ──────────────────────────────
                 const slides = Object.keys(data.transcripts).map((idx) => {
                     const i = parseInt(idx);
-                    const metrics = data.metrics[i] || { wpm: 0, fillers: 0, confidence: 0 };
+                    const metrics = data.metrics[i] || {
+                        wpm: 0, fillers: 0, confidence: 0, alignmentScore: 100, verbatimMatchPct: 0, isReadingSlide: false,
+                    };
                     const transcript = data.transcripts[i] || '';
                     const tip = data.tips[i] || '';
                     const topIssue = data.topIssues[i] || '';
@@ -195,7 +234,8 @@ module.exports = function registerSocketHandlers(io) {
                     const fillScore = metrics.fillers === 0 ? 100
                         : metrics.fillers <= 2 ? 80
                             : metrics.fillers <= 5 ? 60 : 40;
-                    const slideScore = Math.round((wpmScore * 0.3) + (confScore * 0.4) + (fillScore * 0.3));
+                    const alignScore = metrics.alignmentScore ?? 100;
+                    const slideScore = Math.round((wpmScore * 0.25) + (confScore * 0.3) + (fillScore * 0.25) + (alignScore * 0.2));
 
                     return {
                         index: i,
@@ -219,6 +259,12 @@ module.exports = function registerSocketHandlers(io) {
                 const avgConfidence = slidesWithSpeech.length > 0
                     ? Math.round(slidesWithSpeech.reduce((a, s) => a + s.metrics.confidence, 0) / slidesWithSpeech.length)
                     : 0;
+
+                const avgAlignment = slidesWithSpeech.length > 0
+                    ? Math.round(slidesWithSpeech.reduce((a, s) => a + (s.metrics.alignmentScore || 100), 0) / slidesWithSpeech.length)
+                    : 100;
+
+                const slideReaderCount = slidesWithSpeech.filter(s => s.metrics.isReadingSlide).length;
 
                 const overallScore = slidesWithSpeech.length > 0
                     ? Math.round(slidesWithSpeech.reduce((a, s) => a + s.score, 0) / slidesWithSpeech.length)
@@ -245,6 +291,8 @@ module.exports = function registerSocketHandlers(io) {
                     avgWPM,
                     totalFillers,
                     avgConfidence,
+                    avgAlignment,
+                    slideReaderCount,
                     bestSlide,
                     worstSlide,
                     topIssue,

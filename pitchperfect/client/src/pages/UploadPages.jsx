@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 import { createSession } from '../api/sessions';
+import { useAuth } from '../context/AuthContext';
 
 // IMPORTANT: tell PDF.js where its worker file is
 // This worker does the heavy PDF parsing in a background thread
@@ -12,6 +13,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 export default function UploadPage() {
     const navigate = useNavigate();
+    const { user, logout } = useAuth();
 
     const [title, setTitle] = useState('');
     const [file, setFile] = useState(null);       // the File object
@@ -67,6 +69,14 @@ export default function UploadPage() {
     return (
         <div style={styles.page}>
             <div style={styles.card}>
+                {/* User bar */}
+                {user && (
+                    <div style={styles.userBar}>
+                        <span style={styles.userInfo}>👤 {user.name}</span>
+                        <button onClick={logout} style={styles.logoutBtn}>Logout</button>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div style={styles.header}>
                     <h1 style={styles.title}>🎤 PitchPerfect</h1>
@@ -154,6 +164,28 @@ const styles = {
         padding: '2.5rem',
         width: '100%',
         maxWidth: '480px',
+    },
+    userBar: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: '1rem',
+        marginBottom: '1rem',
+        borderBottom: '1px solid #2a2a30',
+    },
+    userInfo: {
+        fontSize: '13px',
+        fontWeight: '500',
+        color: '#aaa',
+    },
+    logoutBtn: {
+        background: 'transparent',
+        border: '1px solid #3a3a40',
+        borderRadius: '6px',
+        color: '#aaa',
+        padding: '4px 10px',
+        fontSize: '12px',
+        cursor: 'pointer',
     },
     header: { textAlign: 'center', marginBottom: '2rem' },
     title: { fontSize: '1.8rem', fontWeight: '600', color: '#fff', margin: '0 0 6px' },

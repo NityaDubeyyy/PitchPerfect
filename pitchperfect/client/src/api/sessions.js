@@ -1,25 +1,24 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+import api from './axios';
+export { login, signup } from './auth';
 
 export const createSession = async (formData) => {
-    const response = await axios.post(`${API_BASE}/sessions`, formData, {
+    const response = await api.post('/sessions', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
 };
 
 export const getSession = async (id) => {
-    const response = await axios.get(`${API_BASE}/sessions/${id}`);
+    const response = await api.get(`/sessions/${id}`);
     return response.data;
 };
 
 export const getSessionReport = async (id) => {
-    const response = await axios.get(`${API_BASE}/sessions/${id}/report`);
+    const response = await api.get(`/sessions/${id}/report`);
     return response.data;
 };
 
 export const getAllSessions = async () => {
-    const response = await axios.get(`${API_BASE}/sessions`);
+    const response = await api.get('/sessions');
     return response.data;
 };

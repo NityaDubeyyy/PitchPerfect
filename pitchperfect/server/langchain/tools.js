@@ -198,6 +198,118 @@ const confidenceTool = new DynamicTool({
 });
 
 // ─────────────────────────────────────────────────────────
+// TOOL 4: Slide Content & Semantic Alignment Detector
+// ─────────────────────────────────────────────────────────
+const alignmentTool = new DynamicTool({
+  name: 'alignment_detector',
+  description: `Detects semantic alignment between speech transcript and current slide text, flagging verbatim slide reading.
+    Input: JSON with transcript (string), slideText (string), sessionId (string).
+    Output: JSON with alignmentScore (number), verbatimMatchPct (number), isReadingSlide (boolean), label (string), suggestion (string).`,
+
+  func: async (inputStr) => {
+    try {
+      const { transcript = '', slideText = '' } = JSON.parse(inputStr);
+
+      const cleanSpoken = transcript.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
+      const cleanSlide = slideText.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
+
+      if (cleanSpoken.length === 0 || cleanSlide.length === 0) {
+        return JSON.stringify({
+          alignmentScore: 80,
+          verbatimMatchPct: 0,
+          isReadingSlide: false,
+          label: 'insufficient data',
+          suggestion: 'Speak more on this slide to assess alignment.',
+        });
+      }
+
+      // Stopwords list to extract meaningful slide keywords
+      const STOPWORDS = new Set([
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+        'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'this', 'that',
+        'these', 'those', 'it', 'its', 'you', 'your', 'we', 'our', 'i', 'my', 'as', 'can', 'will',
+      ]);
+
+      const slideKeywords = cleanSlide.filter(w => !STOPWORDS.has(w) && w.length > 2);
+      const uniqueSlideKeywords = [...new Set(slideKeywords)];
+
+      // 1. Verbatim n-gram overlap check (3-grams)
+      let matchedTrigrams = 0;
+      let totalTrigrams = 0;
+
+      if (cleanSpoken.length >= 3) {
+        const slideTextStr = cleanSlide.join(' ');
+        for (let i = 0; i <= cleanSpoken.length - 3; i++) {
+          totalTrigrams++;
+          const trigram = cleanSpoken.slice(i, i + 3).join(' ');
+          if (slideTextStr.includes(trigram)) {
+            matchedTrigrams++;
+          }
+        }
+      }
+
+      const verbatimMatchPct = totalTrigrams > 0
+        ? Math.min(Math.round((matchedTrigrams / totalTrigrams) * 100), 100)
+        : 0;
+
+      const isReadingSlide = verbatimMatchPct >= 45;
+
+      // 2. Keyword coverage
+      const spokenSet = new Set(cleanSpoken);
+      let matchedKeywords = 0;
+      for (const kw of uniqueSlideKeywords) {
+        if (spokenSet.has(kw)) matchedKeywords++;
+      }
+
+      const keywordCoverage = uniqueSlideKeywords.length > 0
+        ? matchedKeywords / uniqueSlideKeywords.length
+        : 1;
+
+      // 3. Compute Alignment Score (0-100)
+      let alignmentScore = 85;
+
+      if (isReadingSlide) {
+        // Penalty for reading verbatim off the slide
+        alignmentScore = Math.max(100 - Math.round(verbatimMatchPct * 1.1), 35);
+      } else {
+        // Reward adding value & covering slide points without reading word-for-word
+        alignmentScore = Math.round(50 + (keywordCoverage * 45));
+        if (verbatimMatchPct <= 20) alignmentScore = Math.min(alignmentScore + 10, 100);
+      }
+
+      let label = 'good';
+      let suggestion = null;
+
+      if (isReadingSlide) {
+        label = 'verbatim reading';
+        suggestion = `You are reading ${verbatimMatchPct}% of your slide text verbatim. Elaborate with your own narrative instead of reading bullet points.`;
+      } else if (alignmentScore < 60) {
+        label = 'low alignment';
+        suggestion = 'Your speech doesn\'t cover the key points listed on this slide. Connect your talk to the visual content.';
+      } else {
+        label = 'well delivered';
+      }
+
+      return JSON.stringify({
+        alignmentScore,
+        verbatimMatchPct,
+        isReadingSlide,
+        label,
+        suggestion,
+      });
+    } catch (err) {
+      return JSON.stringify({
+        alignmentScore: 80,
+        verbatimMatchPct: 0,
+        isReadingSlide: false,
+        label: 'error',
+        suggestion: null,
+      });
+    }
+  },
+});
+
+// ─────────────────────────────────────────────────────────
 // Cleanup function — call when session ends
 // ─────────────────────────────────────────────────────────
 function cleanupSession(sessionId) {
@@ -206,4 +318,5 @@ function cleanupSession(sessionId) {
   delete hedgeTotals[sessionId];
 }
 
-module.exports = { wpmTool, fillerTool, confidenceTool, cleanupSession };
+module.exports = { wpmTool, fillerTool, confidenceTool, alignmentTool, cleanupSession };
+

@@ -19,9 +19,12 @@ try:
     import imageio_ffmpeg
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
     ffmpeg_dir = os.path.dirname(ffmpeg_exe)
-    target_ffmpeg = os.path.join(ffmpeg_dir, "ffmpeg.exe")
+    ffmpeg_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    target_ffmpeg = os.path.join(ffmpeg_dir, ffmpeg_name)
     if not os.path.exists(target_ffmpeg):
         shutil.copy(ffmpeg_exe, target_ffmpeg)
+        if sys.platform != "win32":
+            os.chmod(target_ffmpeg, 0o755)
     os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
     print(f"[OK] Configured ffmpeg PATH: {ffmpeg_dir}")
 except Exception as e:

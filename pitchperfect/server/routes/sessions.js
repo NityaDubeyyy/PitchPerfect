@@ -6,6 +6,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const Session = require('../models/Session');
+const auth = require('../middleware/auth');
 
 // Multer config
 const storage = multer.diskStorage({
@@ -28,7 +29,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter });
 
 // ── POST /api/sessions ────────────────────────────────────
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', auth, upload.single('file'), async (req, res) => {
     try {
         const { title, totalSlides } = req.body;
 
@@ -38,6 +39,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         const fileUrl = `/uploads/${req.file.filename}`;
 
         const session = new Session({
+            user: req.user.userId,
             title,
             filename: req.file.filename,
             fileUrl,
@@ -54,9 +56,14 @@ router.post('/', upload.single('file'), async (req, res) => {
 });
 
 // ── GET /api/sessions ─────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', auth, async (req, res) => {
     try {
-        const sessions = await Session.find()
+        const sessions = await Session.find({
+            $or: [
+                { user: req.user.userId },
+                { user: { $exists: false } },
+            ]
+        })
             .sort({ createdAt: -1 })
             .select('title totalSlides status createdAt finalReport');
         res.json(sessions);
@@ -66,7 +73,7 @@ router.get('/', async (req, res) => {
 });
 
 // ── GET /api/sessions/:id ─────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
     try {
         const session = await Session.findById(req.params.id);
         if (!session) return res.status(404).json({ error: 'Not found' });
@@ -78,7 +85,7 @@ router.get('/:id', async (req, res) => {
 
 // ── GET /api/sessions/:id/report ─────────────────────────
 // Returns full session with slides + finalReport for the report page
-router.get('/:id/report', async (req, res) => {
+router.get('/:id/report', auth, async (req, res) => {
     try {
         const session = await Session.findById(req.params.id);
         if (!session) return res.status(404).json({ error: 'Session not found' });

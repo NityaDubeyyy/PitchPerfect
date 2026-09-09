@@ -33,6 +33,18 @@ export default function MetricsPanel({ metrics }) {
                 : confidence >= 75 ? '#facc15'
                     : '#f87171';
 
+    // Slide Alignment data
+    const alignmentScore = metrics?.alignmentScore ?? null;
+    const verbatimMatchPct = metrics?.verbatimMatchPct ?? 0;
+    const isReadingSlide = metrics?.isReadingSlide ?? false;
+    const alignmentSuggestion = metrics?.alignmentSuggestion ?? null;
+    const alignColor =
+        !alignmentScore ? '#555'
+            : isReadingSlide ? '#c084fc'
+                : alignmentScore >= 75 ? '#4ade80'
+                    : alignmentScore >= 60 ? '#facc15'
+                        : '#f87171';
+
     return (
         <div style={s.panel}>
             <div style={s.heading}>Live metrics</div>
@@ -120,6 +132,35 @@ export default function MetricsPanel({ metrics }) {
                 {suggestion && (
                     <div style={{ ...s.subText, color: '#facc15', marginTop: '4px' }}>
                         💡 {suggestion}
+                    </div>
+                )}
+            </div>
+
+            {/* ── Slide Alignment & Slide Reader ─────────── */}
+            <div style={s.metricBlock}>
+                <div style={s.row}>
+                    <span style={s.label}>Slide Alignment</span>
+                    <span style={{ ...s.value, color: alignColor }}>
+                        {alignmentScore !== null ? `${alignmentScore}%` : '--'}
+                    </span>
+                </div>
+                {alignmentScore !== null && (
+                    <div style={s.barTrack}>
+                        <div style={{
+                            ...s.barFill,
+                            width: `${alignmentScore}%`,
+                            background: alignColor,
+                        }} />
+                    </div>
+                )}
+                {isReadingSlide && (
+                    <div style={{ ...s.chip, background: '#3b0764', color: '#c084fc', border: '0.5px solid #6b21a8', marginTop: '4px', alignSelf: 'flex-start' }}>
+                        📖 Slide Reader Warning ({verbatimMatchPct}% verbatim)
+                    </div>
+                )}
+                {alignmentSuggestion && !isReadingSlide && (
+                    <div style={{ ...s.subText, color: '#c084fc', marginTop: '2px' }}>
+                        🎯 {alignmentSuggestion}
                     </div>
                 )}
             </div>

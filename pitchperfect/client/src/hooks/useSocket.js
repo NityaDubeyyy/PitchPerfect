@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function useSocket(sessionId, onSessionEnded) {
   const socketRef = useRef(null);
@@ -67,6 +67,11 @@ export default function useSocket(sessionId, onSessionEnded) {
     };
   }, [sessionId]);
 
+  const sendSlideTexts = useCallback((slideTexts) => {
+    if (!socketRef.current || !isConnected) return;
+    socketRef.current.emit('slide_texts', { sessionId, slideTexts });
+  }, [isConnected, sessionId]);
+
   const sendAudioChunk = useCallback((audioBlob, slideIndex) => {
     if (!socketRef.current || !isConnected) return;
     audioBlob.arrayBuffer().then((buffer) => {
@@ -96,6 +101,7 @@ export default function useSocket(sessionId, onSessionEnded) {
     tipTopIssue,
     tipSlideIndex,
     liveTranscript,
+    sendSlideTexts,
     sendAudioChunk,
     notifySlideChange,
     endSession,

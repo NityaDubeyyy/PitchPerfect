@@ -6,7 +6,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     import.meta.url
 ).toString();
 
-export default function SlideViewer({ fileUrl, onPageCount, currentPage }) {
+export default function SlideViewer({ fileUrl, onPageCount, currentPage, onExtractSlideTexts }) {
     const canvasRef = useRef(null);
     const pdfRef = useRef(null);
     const [loading, setLoading] = useState(true);
@@ -37,6 +37,22 @@ export default function SlideViewer({ fileUrl, onPageCount, currentPage }) {
 
                 pdfRef.current = pdf;
                 onPageCount(pdf.numPages);
+
+                if (onExtractSlideTexts) {
+                    const slideTexts = {};
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        try {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => item.str).join(' ');
+                            slideTexts[i - 1] = pageText;
+                        } catch (textErr) {
+                            console.warn(`Could not extract text for slide ${i}:`, textErr);
+                        }
+                    }
+                    onExtractSlideTexts(slideTexts);
+                }
+
                 setLoading(false);
             } catch (err) {
                 console.error('PDF load error:', err);
