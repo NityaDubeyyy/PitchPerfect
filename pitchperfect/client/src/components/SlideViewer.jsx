@@ -19,19 +19,16 @@ export default function SlideViewer({ fileUrl, onPageCount, currentPage, onExtra
             try {
                 setLoading(true);
 
-                // Convert absolute URL to relative so Vite proxy handles it
-                // e.g. http://localhost:5000/uploads/file.pdf → /uploads/file.pdf
-                let relativeUrl = fileUrl;
-                try {
-                    const parsedUrl = new URL(fileUrl);
-                    relativeUrl = parsedUrl.pathname;
-                } catch (e) {
-                    // Fallback to fileUrl if it is already relative or not a full URL
+                let targetUrl = fileUrl;
+                if (!fileUrl.startsWith('http')) {
+                    const backendUrl = import.meta.env.VITE_API_URL || '';
+                    targetUrl = backendUrl ? `${backendUrl.replace(/\/+$/, '')}/${fileUrl.replace(/^\/+/, '')}` : fileUrl;
+                } else if (fileUrl.includes('localhost:5000') && import.meta.env.VITE_API_URL) {
+                    targetUrl = fileUrl.replace('http://localhost:5000', import.meta.env.VITE_API_URL.replace(/\/+$/, ''));
                 }
 
                 const pdf = await pdfjsLib.getDocument({
-                    url: relativeUrl,
-                    // Tell PDF.js to use credentials so CORS headers are sent
+                    url: targetUrl,
                     withCredentials: false,
                 }).promise;
 
